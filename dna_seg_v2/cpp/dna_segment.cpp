@@ -1,0 +1,124 @@
+#include "dna_segment.h"
+DNASegment::DNASegment(void)
+{}
+
+DNASegment::~DNASegment(void)
+{}
+
+int DNASegment::InitialDict(const string & dict_file_name)
+{
+    ifstream in_file(dict_file_name.c_str());
+    if (!in_file)
+    {
+        cout<<"file open error!"<<endl;
+        return -1;
+    }
+
+    string line = "";
+    string word = "";
+    string prob = "";
+    float  prob_f = 0;
+    int tab_pos = 0;
+
+    while(getline(in_file, line))
+    {
+        if (( tab_pos=line.find("\t")) != string::npos)
+        {
+            word = line.substr(0, tab_pos);
+            prob = line.substr(tab_pos+1);
+            prob_f = atof(prob.c_str());
+            m_word_dict[word] = prob_f;
+        }
+        else
+        {
+            cout<<"dict file read error"<<endl;
+            return -2;
+        }
+    }
+    in_file.close();
+    return 0;
+}
+
+string DNASegment::MpSeg(const string & sequence)
+{
+    //step 1, construct segment graph and find the best path
+
+    //s_left recod the sum of probability, for example s_left[5] record the sum
+    //probability in postion 5
+    vector <float> s_left;
+
+    //s_left_set record the left segment point, for example, s_left_seg[5] record
+    //the left segment point of postion 5 in sequence
+    vector <int> s_left_seg;
+
+    s_left.push_back(0);
+    s_left_seg.push_back(0);
+
+    int max_word_length = 0;
+    string word = "";
+    for (int pos=1;pos<sequence.length()+LETTER_LENGTH;pos=pos+LETTER_LENGTH)
+    {
+        if (pos < MAX_WORD_LENGTH)
+        {
+            max_word_length = pos;
+        }
+        else
+        {
+            max_word_length = MAX_WORD_LENGTH;
+        }
+
+        float max_prob = float (-1*INT_MAX);
+        int left_seg = 0;
+
+        for (int length=LETTER_LENGTH;length<max_word_length+LETTER_LENGTH;length=length+LETTER_LENGTH)
+        {
+            word = sequence.substr(pos-length, length);
+            if ( m_word_dict.end() != m_word_dict.find(word) )
+            {
+                float prob = m_word_dict[word] + s_left[(pos-length)/LETTER_LENGTH];
+                if (prob > max_prob)
+                {
+                    max_prob = prob;
+                    left_seg = pos-length;
+                }
+            }
+        }
+        s_left.push_back(max_prob);
+        s_left_seg.push_back(left_seg);
+
+    }
+
+    //step 2, get segment point
+    vector <int> seg_pos;
+    seg_pos.push_back(sequence.length());
+    int pos = s_left_seg[ s_left_seg.size() -1 ]; //last pos
+    seg_pos.push_back(pos);
+    while (true)
+    {
+        if (pos == 0)
+        {
+            break;
+        }
+        pos = s_left_seg[pos/LETTER_LENGTH];
+        seg_pos.push_back(pos);
+    }
+    reverse(seg_pos.begin(), seg_pos.end());
+
+    //step 3, create segmented words list
+    string seg_sequence = "";
+    for (pos=0; pos<seg_pos.size()-1 ; pos++)
+    {
+        int left = seg_pos[pos];
+        int right = seg_pos[pos + 1];
+        word = sequence.substr(left, right-left);
+        if ( "" == seg_sequence )
+        {
+            seg_sequence = word;
+        }
+        else
+        {
+            seg_sequence = seg_sequence + DELIMITER + word;
+        }
+    }
+    return seg_sequence;
+}
